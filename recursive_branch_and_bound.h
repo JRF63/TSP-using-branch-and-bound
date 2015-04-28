@@ -9,7 +9,7 @@ inline void cover(const index_t matrix_width, const index_t city_num,
     const index_t offset = city_num + 1;
     
     Node* node;
-    for (index_t i = 0; i < num_cities; ++i) {
+    for (index_t i = 0; i < matrix_width - 1; ++i) {
         node = &(city_matrix[i*matrix_width + offset]);
         node->left->right = node->right;
         node->right->left = node->left;
@@ -30,7 +30,7 @@ inline void uncover(const index_t matrix_width, const index_t city_num,
     header->down->up = header;
     
     Node* node;
-    for (index_t i = 0; i < num_cities; ++i) {
+    for (index_t i = 0; i < matrix_width - 1; ++i) {
         node = &(city_matrix[i*matrix_width + offset]);
         node->left->right = node;
         node->right->left = node;
@@ -42,7 +42,7 @@ inline coord_t compute_lower_bound(const Node* city_matrix, const Header* header
 {
     coord_t lower_bound = 2*total_cost;
     lower_bound += city_matrix[0].right->cost;  // min cost of start node
-    lower_bound += city_matrix[(path->city_num)*matrix_width].right->cost // min cost of last node
+    lower_bound += city_matrix[(path->city_num)*matrix_width].right->cost; // min cost of last node
     Header* header = headers[0].down;
     while (header != NULL) {
         const Node* minimum = header->right->right;
@@ -53,7 +53,7 @@ inline coord_t compute_lower_bound(const Node* city_matrix, const Header* header
     return lower_bound;
 }
 
-void recursive_dfs_bab(const index_t* cities, const index_t num_cities,
+void recursive_dfs_bab(Point* cities, const index_t num_cities,
                        Node* city_matrix, Header* headers,
                        Path* path, index_t path_length, coord_t total_cost,
                        coord_t* best, index_t* solution)
@@ -83,16 +83,16 @@ void recursive_dfs_bab(const index_t* cities, const index_t num_cities,
             // no intersection criteria
             bool intersects = false;
             
-            Point next_city = cities[next_city_num];
-            Point prev_city = cities[path->city_num];
+            Point* next_city = &(cities[next_city_num]);
+            Point* prev_city = &(cities[path->city_num]);
             
             Path* last_last = path->prev;
             Path* last_last_last;
             if (last_last != NULL) {
                 last_last_last = last_last->prev;
                 while (last_last_last != NULL) {
-                    Point city_ein = cities[last_last->city_num];
-                    Point city_zwei = cities[last_last_last->city_num]
+                    Point* city_ein = &(cities[last_last->city_num]);
+                    Point* city_zwei = &(cities[last_last_last->city_num]);
                     if (segments_intersect(prev_city, next_city,
                                            city_ein, city_zwei)) {
                         intersects = true;
@@ -109,15 +109,15 @@ void recursive_dfs_bab(const index_t* cities, const index_t num_cities,
             }
             // end no intersection criteria
             
-            Path* new_path;
+            Path new_path;
             new_path.city_num = next_city_num;
             new_path.prev = path;
             
-            cover(matrix_width, next_city_num, Header* headers, Node* city_matrix);
+            cover(matrix_width, next_city_num, headers, city_matrix);
             recursive_dfs_bab(cities, num_cities, city_matrix, headers,
-                              new_path, path_length + 1, new_cost,
+                              &new_path, path_length + 1, new_cost,
                               best, solution);
-            uncover(matrix_width, next_city_num, Header* headers, Node* city_matrix);
+            uncover(matrix_width, next_city_num, headers, city_matrix);
             
             next_node = next_node->right;
         }
@@ -181,12 +181,12 @@ coord_t branch_and_bound(Point* cities, const index_t num_cities, index_t* solut
     coord_t best = HUGE_VAL;
     
     // start := 0
-    Path* path;
+    Path path;
     path.city_num = 0;
     path.prev = NULL;
     cover(num_cities + 1, 0, headers, city_matrix);
     recursive_dfs_bab(cities, num_cities, city_matrix, headers,
-                      path, 1, 0, &best, solution);
+                      &path, 1, 0, &best, solution);
     
     free(headers);
     free(city_matrix);
