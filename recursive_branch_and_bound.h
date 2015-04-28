@@ -53,14 +53,12 @@ inline coord_t compute_lower_bound(const Node* city_matrix, const Header* header
     return lower_bound;
 }
 
-void recursive_dfs_bab(const index_t num_cities,
+void recursive_dfs_bab(const index_t* cities, const index_t num_cities,
                        Node* city_matrix, Header* headers,
                        Path* path, index_t path_length, coord_t total_cost,
                        coord_t* best, index_t* solution)
 {
-    if (PIKACHU!) {
-        return;
-    } else if (path_length == num_cities && total_cost < *best) {
+    if (path_length == num_cities && total_cost < *best) {
         *best = total_cost;
         index_t i = num_cities - 1;
         Path* trav = path;
@@ -71,16 +69,67 @@ void recursive_dfs_bab(const index_t num_cities,
         }
         
     } else {
-        
+        const index_t matrix_width = num_cities + 1;
+        Node* next_node = city_matrix[(path->city_num)*matrix_width].right;
+        while (next_node != NULL) {
+            const coord_t new_cost = total_cost + next_node->cost;
+            
+            if (new_cost >= *best) {
+                break; // not going to get better, terminate recursion
+            }
+            
+            index_t next_city_num = next_node->city_num;
+            
+            // no intersection criteria
+            bool intersects = false;
+            
+            Point next_city = cities[next_city_num];
+            Point prev_city = cities[path->city_num];
+            
+            Path* last_last = path->prev;
+            Path* last_last_last;
+            if (last_last != NULL) {
+                last_last_last = last_last->prev;
+                while (last_last_last != NULL) {
+                    Point city_ein = cities[last_last->city_num];
+                    Point city_zwei = cities[last_last_last->city_num]
+                    if (segments_intersect(prev_city, next_city,
+                                           city_ein, city_zwei)) {
+                        intersects = true;
+                        break;
+                    }
+                    last_last = last_last_last;
+                    last_last_last = last_last_last->prev;
+                }
+            }
+            
+            if (intersects) {
+                next_node = next_node->right;
+                continue;
+            }
+            // end no intersection criteria
+            
+            Path* new_path;
+            new_path.city_num = next_city_num;
+            new_path.prev = path;
+            
+            cover(matrix_width, next_city_num, Header* headers, Node* city_matrix);
+            recursive_dfs_bab(cities, num_cities, city_matrix, headers,
+                              new_path, path_length + 1, new_cost,
+                              best, solution);
+            uncover(matrix_width, next_city_num, Header* headers, Node* city_matrix);
+            
+            next_node = next_node->right;
+        }
     }
 }
 
-void branch_and_bound(Point* cities, const index_t num_cities)
+coord_t branch_and_bound(Point* cities, const index_t num_cities, index_t* solution)
 {       
     Header* headers = (Header*)malloc(sizeof(Header)*(num_cities + 1));
     Node* city_matrix = (Node*)malloc(sizeof(Node)*(num_cities + 1)*num_cities);
     
-    headers[0].right = NULL; // di kailangan?
+    headers[0].right = NULL;
     headers[0].up = NULL;
     headers[0].down = &(headers[1]);
     
@@ -129,32 +178,17 @@ void branch_and_bound(Point* cities, const index_t num_cities)
         }
     }
     
-#ifdef DEBUG
-    // debug 1
-    printf("Test #1\n");
-    for (index_t i = 0; i < num_cities; ++i) {
-        printf("(%2d)\t", i);
-        Node* pika = headers[i + 1].right;
-        while (pika->right != NULL) {
-            printf("%12lf %3d\t", pika->right->cost, pika->right->city_num);
-            pika = pika->right;
-        }
-        printf("\n");
-    }
+    coord_t best = HUGE_VAL;
     
-    // debug 2
-    printf("\nTest #2\n");
-    for (index_t i = 0; i < num_cities; ++i) {
-        printf("(%2d)\t", i);
-        for (index_t j = 1; j <= num_cities; ++j) {
-            #define IDX(i, j) ((i)*(num_cities + 1) + (j))
-            Node* pika = &(city_matrix[IDX(i, j)]);
-            printf("%12lf %3d\t", pika->cost, pika->city_num);
-        }
-        printf("\n");
-    }
-#endif
+    // start := 0
+    Path* path;
+    path.city_num = 0;
+    path.prev = NULL;
+    cover(num_cities + 1, 0, headers, city_matrix);
+    recursive_dfs_bab(cities, num_cities, city_matrix, headers,
+                      path, 1, 0, &best, solution);
     
     free(headers);
     free(city_matrix);
+    return best;
 }
