@@ -23,3 +23,9 @@ typedef struct header
     struct header* up;
     struct header* down;
 } Header;
+
+typedef struct path
+{
+    index_t city_num;
+    struct path* prev;
+} Path;
