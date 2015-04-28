@@ -15,17 +15,11 @@ typedef struct node
     index_t city_num;
     struct node* left;
     struct node* right;
-    struct node* down;
 } Node;
 
-typedef struct
+typedef struct header
 {
-    Node* down;
+    Node* right;
+    struct header* up;
+    struct header* down;
 } Header;
-
-typedef struct set
-{
-    index_t city_num;
-    struct set* up;
-    struct set* down;
-} Set;

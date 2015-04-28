@@ -3,57 +3,59 @@
 #include "branch_and_bound_types.h"
 #include "helper_functions.h"
 
-void cover(index_t city_num, Header* headers, Set* node_set)
-{
-    Node* next = headers[city_num].down;
-    while (next != NULL) {
-        next->left->right = next->right;
-        next->right->left = next->left;
-        next = next->down;
-    }
-    
-    Set* this_node = &((node_set->down)[city_num]);
-    this_node->up->down = this_node->down;
-    this_node->down->up = this_node->up;
-}
-
-void uncover(index_t city_num, Header* headers, Set* node_set)
-{
-    Set* this_node = &((node_set->down)[city_num]);
-    this_node->up->down = this_node;
-    this_node->down->up = this_node;
-    
-    Node* next = headers[city_num].down;
-    while (next != NULL) {
-        next->left->right = next;
-        next->right->left = next;
-        next = next->down;
-    }
-}
+// void cover(index_t city_num, Header* headers, Set* node_set)
+// {
+//     Node* next = headers[city_num].down;
+//     while (next != NULL) {
+//         next->left->right = next->right;
+//         next->right->left = next->left;
+//         next = next->down;
+//     }
+//     
+//     Set* this_node = &((node_set->down)[city_num]);
+//     this_node->up->down = this_node->down;
+//     this_node->down->up = this_node->up;
+// }
+// 
+// void uncover(index_t city_num, Header* headers, Set* node_set)
+// {
+//     Set* this_node = &((node_set->down)[city_num]);
+//     this_node->up->down = this_node;
+//     this_node->down->up = this_node;
+//     
+//     Node* next = headers[city_num].down;
+//     while (next != NULL) {
+//         next->left->right = next;
+//         next->right->left = next;
+//         next = next->down;
+//     }
+// }
 
 void branch_and_bound(Point* cities, const index_t num_cities)
-{
-    Header* headers = (Header*)malloc(sizeof(Header)*num_cities);
-    Set* node_set = (Set*)malloc(sizeof(Set)*(num_cities + 1));
-    Node* city_matrix = (Node*)malloc(sizeof(Node)*num_cities*(num_cities + 1));
+{       
+    Header* headers = (Header*)malloc(sizeof(Header)*(num_cities + 1));
+    Node* city_matrix = (Node*)malloc(sizeof(Node)*(num_cities + 1)*num_cities);
     
-    node_set[0].city_num = num_cities;
-    node_set[0].up = NULL;
-    node_set[0].down = &(node_set[1]);
-    for (index_t i = 1; i <= num_cities; ++i) {
-        node_set[i].city_num = i;
-        node_set[i].up = &(node_set[i - 1]);
-        node_set[i].down = (i == num_cities) ? NULL : &(node_set[i + 1]);
-    }
+    headers[0].right = NULL; // di kailangan?
+    headers[0].up = NULL;
+    headers[0].down = &(headers[1]);
     
-    coord_t* temp_costs_array = (coord_t*)malloc(sizeof(coord_t)*num_cities);
-    index_t* index_holder = (index_t*)malloc(sizeof(index_t)*num_cities);
-    Node** prev_city_array = (Node**)malloc(sizeof(Node*)*num_cities);
-
+    
     for (index_t i = 0; i < num_cities; ++i) {
         Point* city_ein = &(cities[i]);
         coord_t ein_x = city_ein->x;
         coord_t ein_y = city_ein->y;
+        
+        Node* sub_matrix = city_matrix + i*(num_cities + 1);
+        Node* start = &(sub_matrix[0]);
+        start->cost = 0;
+        start->city_num = num_cities;
+        start->left = NULL;
+        start->right = NULL;
+        
+        headers[i + 1].right = start;
+        headers[i + 1].up = &(headers[i]);
+        headers[i + 1].down = (i == num_cities - 1) ? NULL : &(headers[i + 2]);
         
         for (index_t j = 0; j < num_cities; ++j) {
             coord_t dist;
@@ -66,70 +68,50 @@ void branch_and_bound(Point* cities, const index_t num_cities)
                 dist = sqrt(dist_x*dist_x + dist_y*dist_y);
             }
             
-            // sort
-            index_t true_pos = 0;
-            while (temp_costs_array[true_pos] <= dist && true_pos < j) {
-                ++true_pos;
-            }
-            for (index_t pos = j; pos > true_pos; --pos) {
-                temp_costs_array[pos] = temp_costs_array[pos - 1];
-                index_holder[pos] = index_holder[pos - 1];
-            }
-            temp_costs_array[true_pos] = dist;
-            index_holder[true_pos] = j;
-        }
-        
-        Node* sub_matrix = city_matrix + i*(num_cities + 1);
-        
-        sub_matrix[0].cost = 0;
-        sub_matrix[0].city_num = 0;
-        sub_matrix[0].left = NULL;
-        sub_matrix[0].right = &(sub_matrix[1]);
-        for (index_t k = 0; k < num_cities; ++k) {
-            Node* node = &(sub_matrix[k + 1]);
-            node->cost = temp_costs_array[k];
-            node->city_num = index_holder[k];
-            node->left = node - 1;
-            node->right = (k == num_cities - 1) ? NULL : node + 1;
+            Node* node = &(sub_matrix[j + 1]);
+            node->cost = dist;
+            node->city_num = j;
             
-            if (i == 0) {
-                headers[index_holder[k]].down = node;
-            } else {
-                prev_city_array[index_holder[k]]->down = node;
-                if (i == num_cities - 1) {
-                    node->down = NULL;
-                }
+            Node* prev = &(sub_matrix[0]);
+            while (prev->right != NULL && prev->right->cost <= dist) {
+                prev = prev->right;
             }
-            prev_city_array[index_holder[k]] = node;
+            
+            if (prev->right != NULL) {
+                prev->right->left = node;
+            }
+            node->left = prev;
+            node->right = prev->right;
+            prev->right = node;
         }
     }
-    free(temp_costs_array);
-    free(index_holder);
-    free(prev_city_array);
     
 #ifdef DEBUG
     // debug 1
     printf("Test #1\n");
-    Node* pika = city_matrix + 1*(num_cities + 1);
-    while (pika->right != NULL) {
-        printf("%lf %d\n", pika->right->cost, pika->right->city_num);
-        pika = pika->right;
+    for (index_t i = 0; i < num_cities; ++i) {
+        printf("(%2d)\t", i);
+        Node* pika = headers[i + 1].right;
+        while (pika->right != NULL) {
+            printf("%12lf %3d\t", pika->right->cost, pika->right->city_num);
+            pika = pika->right;
+        }
+        printf("\n");
     }
     
     // debug 2
     printf("\nTest #2\n");
     for (index_t i = 0; i < num_cities; ++i) {
-        Node* pika = headers[i].down;
         printf("(%2d)\t", i);
-        while (pika != NULL) {
+        for (index_t j = 1; j <= num_cities; ++j) {
+            #define IDX(i, j) ((i)*(num_cities + 1) + (j))
+            Node* pika = &(city_matrix[IDX(i, j)]);
             printf("%12lf %3d\t", pika->cost, pika->city_num);
-            pika = pika->down;
         }
         printf("\n");
     }
 #endif
     
     free(headers);
-    free(node_set);
     free(city_matrix);
 }
