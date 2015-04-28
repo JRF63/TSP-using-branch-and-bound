@@ -55,25 +55,42 @@ inline coord_t compute_lower_bound(const Node* city_matrix, const Header* header
     lower_bound += city_matrix[0].right->cost;  // min cost of start node
     lower_bound += sub_matrix->right->cost; // min cost of last node
 
+    
     Header* header = headers[0].down;
     while (header != NULL) {
         const Node* minimum = header->right->right;
-        lower_bound += minimum->cost;
-        coord_t choice = HUGE_VAL;
-        if (minimum->right != NULL) {
-            choice = minimum->right->cost;
-        }
         
-        if (choice == HUGE_VAL) {
-            lower_bound += sub_matrix[header->right->city_num + 1].cost;
+//         if (minimum->right == NULL) {
+//             printf("Culprit!\n");
+//         }
+        
+        coord_t ein = minimum->cost;
+        coord_t zwei = minimum->right->cost;
+        coord_t drei = sub_matrix[header->right->city_num + 1].cost;
+        
+        if (ein > zwei) {
+            if (ein > drei) {
+                lower_bound += zwei;
+                lower_bound += drei;
+            } else {
+                lower_bound += zwei;
+                lower_bound += ein;
+            }
         } else {
-            lower_bound += choice;
+            if (zwei > drei) {
+                lower_bound += ein;
+                lower_bound += drei;
+            } else {
+                lower_bound += ein;
+                lower_bound += zwei;
+            }
         }
         
         header = header->down;
     }
     
     return lower_bound/2;
+    return 0;
 }
 
 void recursive_dfs_bab(Point* cities, const index_t matrix_width,
@@ -90,7 +107,7 @@ void recursive_dfs_bab(Point* cities, const index_t matrix_width,
         tour_cost += sub_matrix[path->city_num + 1].cost;
         
         if (tour_cost < *best) {
-            printf("%lf\n", tour_cost);
+//             printf("%lf\n", tour_cost);
             *best = tour_cost;
             index_t i = matrix_width - 2;
             solution[i] = sub_matrix->city_num;
