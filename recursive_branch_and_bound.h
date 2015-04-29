@@ -11,7 +11,6 @@ inline void cover(const index_t matrix_width, const index_t city_num,
     Node* node;
     for (index_t i = 0; i < matrix_width - 1; ++i) {
         node = &(city_matrix[i*matrix_width + offset]);
-        
         node->left->right = node->right;
         if (node->right != NULL) {
             node->right->left = node->left;
@@ -49,64 +48,18 @@ inline void uncover(const index_t matrix_width, const index_t city_num,
 inline coord_t compute_lower_bound(const Node* city_matrix, const Header* headers, const Path* path,
                                    const index_t matrix_width, const coord_t total_cost)
 {
-//     printf("->1\n");=
+//     printf("->1\n");
     coord_t lower_bound = 2*total_cost;
     lower_bound += city_matrix[0].right->cost;  // min cost of start node
     lower_bound += city_matrix[(path->city_num)*matrix_width].right->cost; // min cost of last node
 
     Header* header = headers[0].down;
     while (header != NULL) {
-        Node* sub_matrix = header->right;
-        Node* minimum = sub_matrix->right;
-        
-        coord_t ein = minimum->cost;
-        coord_t zwei = minimum->right->cost;
-        coord_t drei = sub_matrix[1].cost;
-        coord_t vier = sub_matrix[path->city_num + 1].cost;
-        
-        coord_t low_1, high_1, low_2, high_2;
-        coord_t bottom_min, bottom_max, top_min, top_max;
-        
-        if (ein < zwei) {
-            low_1 = ein;
-            high_1 = zwei;
-        } else {
-            low_1 = zwei;
-            high_1 = ein;
-        }
-        
-        if (drei < vier) {
-            low_2 = drei;
-            high_2 = vier;
-        } else {
-            low_2 = vier;
-            high_2 = drei;
-        }
-        
-        if (high_1 < high_2) {
-            top_min = high_1;
-            top_max = high_2;
-        } else {
-            top_min = high_2;
-            top_max = high_1;
-        }
-        
-        if (low_1 < low_2) {
-            bottom_min = low_1;
-            bottom_max = low_2;
-        } else {
-            bottom_min = low_2;
-            bottom_max = low_1;
-        }
-        
-        if (top_min < bottom_max) {
-            lower_bound += bottom_min + top_min;
-        } else {
-            lower_bound += bottom_min + bottom_max;
-        }
+        Node* minimum = header->right->right;
+        lower_bound += minimum->cost;
+        lower_bound += minimum->right->cost;
         header = header->down;
     }
-    
     return lower_bound/2;
 }
 
@@ -115,7 +68,6 @@ void recursive_dfs_bab(Point* cities, const index_t matrix_width,
                        Path* path, index_t path_length, coord_t total_cost,
                        coord_t* best, index_t* solution)
 {
-//     printf("%d %d\n", path_length, path->city_num);
     if (path_length == matrix_width - 2) {
         coord_t tour_cost = total_cost;
 //         printf("->2\n");
@@ -136,16 +88,19 @@ void recursive_dfs_bab(Point* cities, const index_t matrix_width,
                 --i;
             }
         }
-    } else if (*best < compute_lower_bound(city_matrix, headers, path, matrix_width, total_cost)) {
-        return;
     } else {
 //         printf("->3\n");
         Node* next_node = city_matrix[(path->city_num)*matrix_width].right;
         while (next_node != NULL) {
-            const coord_t new_cost = total_cost + next_node->cost;
+            if (next_node->city_num == 0) {
+                next_node = next_node->right;
+                continue;
+            }
             
+            const coord_t new_cost = total_cost + next_node->cost;
+            // not going to get better, terminate recursion
             if (new_cost >= *best) {
-                break; // not going to get better, terminate recursion
+                break;
             }
             
             index_t next_city_num = next_node->city_num;
@@ -157,20 +112,20 @@ void recursive_dfs_bab(Point* cities, const index_t matrix_width,
                 Point* next_city = &(cities[next_city_num]);
                 Point* prev_city = &(cities[path->city_num]);
                 
-                Path* last_last = path->prev;
-                Path* last_last_last;
-                if (last_last != NULL) {
-                    last_last_last = last_last->prev;
-                    while (last_last_last != NULL) {
-                        Point* city_ein = &(cities[last_last->city_num]);
-                        Point* city_zwei = &(cities[last_last_last->city_num]);
+                Path* drei = path->prev;
+                Path* vier;
+                if (drei != NULL) {
+                    vier = drei->prev;
+                    while (vier != NULL) {
+                        Point* city_drei = &(cities[drei->city_num]);
+                        Point* city_vier = &(cities[vier->city_num]);
                         if (segments_intersect(prev_city, next_city,
-                                            city_ein, city_zwei)) {
+                                               city_drei, city_vier)) {
                             intersects = true;
                             break;
                         }
-                        last_last = last_last_last;
-                        last_last_last = last_last_last->prev;
+                        drei = vier;
+                        vier = vier->prev;
                     }
                 }
                 
@@ -178,12 +133,21 @@ void recursive_dfs_bab(Point* cities, const index_t matrix_width,
                     next_node = next_node->right;
                     continue;
                 }
-                // end no intersection criteria
             }
             
             Path new_path;
             new_path.city_num = next_city_num;
             new_path.prev = path;
+            
+            Header* header = &(headers[next_city_num + 1]);
+            header->up->down = header->down;
+            coord_t lower_bound = compute_lower_bound(city_matrix, headers, &new_path, matrix_width, new_cost);
+            header->up->down = header;
+            
+            if (*best < lower_bound) {
+                next_node = next_node->right;
+                continue;
+            }
             
             cover(matrix_width, next_city_num, headers, city_matrix);
             recursive_dfs_bab(cities, matrix_width, city_matrix, headers,
@@ -211,13 +175,12 @@ coord_t branch_and_bound(Point* cities, const index_t num_cities, index_t* solut
         coord_t ein_y = city_ein->y;
         
         Node* sub_matrix = city_matrix + i*(num_cities + 1);
-        Node* start = &(sub_matrix[0]);
-        start->cost = HUGE_VAL;
-        start->city_num = i;
-        start->left = NULL;
-        start->right = NULL;
+        sub_matrix->cost = HUGE_VAL;
+        sub_matrix->city_num = i;
+        sub_matrix->left = NULL;
+        sub_matrix->right = NULL;
         
-        headers[i + 1].right = start;
+        headers[i + 1].right = sub_matrix;
         headers[i + 1].up = &(headers[i]);
         headers[i + 1].down = (i == num_cities - 1) ? NULL : &(headers[i + 2]);
         
@@ -252,11 +215,13 @@ coord_t branch_and_bound(Point* cities, const index_t num_cities, index_t* solut
     
     coord_t best = HUGE_VAL;
     
-    // start := 0
     Path path;
     path.city_num = 0;
     path.prev = NULL;
-    cover(num_cities + 1, 0, headers, city_matrix);
+    
+    headers[0].down = &(headers[2]);
+    headers[2].up = &(headers[0]);
+    
     recursive_dfs_bab(cities, num_cities + 1, city_matrix, headers,
                       &path, 1, 0, &best, solution);
     
